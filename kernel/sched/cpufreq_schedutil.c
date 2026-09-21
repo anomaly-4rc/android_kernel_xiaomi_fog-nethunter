@@ -17,7 +17,7 @@
 #include <trace/events/power.h>
 #include <linux/sched/sysctl.h>
 
-int sugov_boost_threshold = 100;
+int sugov_boost_threshold = 350;
 
 struct sugov_tunables {
 	struct gov_attr_set	attr_set;

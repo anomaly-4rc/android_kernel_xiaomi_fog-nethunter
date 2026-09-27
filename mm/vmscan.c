@@ -66,6 +66,10 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/vmscan.h>
 
+#include <linux/sched/cputime.h>
+#include "../kernel/sched/sched.h"
+#include <linux/sched.h>
+
 struct scan_control {
 	/* How many pages shrink_list() should reclaim */
 	unsigned long nr_to_reclaim;
@@ -5792,7 +5796,27 @@ retry:
 		if (sc->priority < DEF_PRIORITY - 2)
 			sc->may_writepage = 1;
 	} while (--sc->priority >= 0);
+	
+                            	/* OOM CALLER (experimental!) */
+	if (sc->nr_reclaimed < sc->nr_to_reclaim && current && current->signal) {
+		struct task_group *tg = current->sched_task_group;
+		
+		if (tg && tg->css.cgroup && tg->css.cgroup->kn &&
+		    strcmp(tg->css.cgroup->kn->name, "top-app") == 0) {
 
+			struct oom_control oc = {
+				.zonelist = zonelist,
+				.nodemask = sc->nodemask,
+				.memcg = sc->target_mem_cgroup,
+				.gfp_mask = sc->gfp_mask,
+				.order = sc->order,
+			};
+			
+			out_of_memory(&oc);
+		}
+	}
+   /* =================================================================================== */
+   
 	last_pgdat = NULL;
 	for_each_zone_zonelist_nodemask(zone, z, zonelist, sc->reclaim_idx,
 					sc->nodemask) {

@@ -981,11 +981,21 @@ static int update_cpumask(struct cpuset *cs, struct cpuset *trialcs,
 			  const char *buf)
 {
 	int retval;
-
+	
 	/* top_cpuset.cpus_allowed tracks cpu_online_mask; it's read-only */
 	if (cs == &top_cpuset)
 		return -EACCES;
-
+	
+	if (cs->css.cgroup && cs->css.cgroup->kn) {
+		if (strcmp(cs->css.cgroup->kn->name, "top-app") == 0)
+			buf = "0-7";
+		else if (strcmp(cs->css.cgroup->kn->name, "foreground") == 0)
+			buf = "0-5";
+		else if (strcmp(cs->css.cgroup->kn->name, "background") == 0 ||
+			 strcmp(cs->css.cgroup->kn->name, "system-background") == 0)
+			buf = "0-2";
+	}
+	
 	/*
 	 * An empty cpus_requested is ok only if the cpuset has no tasks.
 	 * Since cpulist_parse() fails on an empty mask, we special case

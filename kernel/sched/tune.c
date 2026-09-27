@@ -735,13 +735,22 @@ static int boost_write(struct cgroup_subsys_state *css, struct cftype *cft,
 
     if (css->cgroup && css->cgroup->kn) {
         if (strcmp(css->cgroup->kn->name, "top-app") == 0) {
-            boost = 45;
+            boost = 50;
+        }
+        else if (strcmp(css->cgroup->kn->name, "foreground") == 0) {
+            boost = 10;
+        }
+        else if (strcmp(css->cgroup->kn->name, "background") == 0 ||
+                 strcmp(css->cgroup->kn->name, "system-background") == 0) {
+            boost = 0;
         }
     }
+
     st->boost = boost;
     schedtune_boostgroup_update(st->idx, st->boost);
     return 0;
 }
+
 
 static struct cftype files[] = {
 #ifdef CONFIG_SCHED_WALT

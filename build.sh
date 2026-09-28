@@ -1,31 +1,35 @@
 #!/bin/bash
-# script BY: anomaly_arc (Optimized for Linux Mint + WeebX Clang)
+# script BY: anomaly_arc
 DEFCONFIG="vendor/fog-perf_defconfig"
 
 export KBUILD_BUILD_USER="anomaly-arc"
-export KBUILD_BUILD_HOST="Debian"
+export KBUILD_BUILD_HOST="VoidLinux"
 export ARCH=arm64
 export SUBARCH=arm64
 
 ZIP_NAME="Quetzalcōātl-$(date +%Y%m%d-%H%M).zip"
 AK3_DIR="$(pwd)/../anykernel"
 
-# TC_DIR="$(pwd)/../weebx-clang"
-# export PATH="$TC_DIR/bin:$PATH"
-
 export USE_CCACHE=1
 export CCACHE_DIR="$HOME/.cache/ccache"
-export CCACHE_MAXSIZE="50G"
-export CCACHE_EXEC=$(which ccache)
+export CCACHE_NOCOMPRESS=true
+export CCACHE_MAXSIZE="30G"
 export CCACHE_SLOPPINESS="include_file_mtime,include_file_ctime,time_macros"
-ccache -M $CCACHE_MAXSIZE >/dev/null 2>&1
+
+if [ -x "$(command -v ccache)" ]; then
+    export CCACHE_EXEC=$(which ccache)
+    ccache -M $CCACHE_MAXSIZE >/dev/null 2>&1
+else
+    echo "Warning: ccache tidak ditemukan, build tanpa ccache..."
+    export USE_CCACHE=0
+fi
 
 export KCFLAGS="-Wno-error -Wno-unused-variable -Wno-unused-function -Wno-pointer-sign -Wno-address-of-packed-member"
 
 if [[ $1 = "-c" || $1 = "--clean" ]]; then
     echo "Cleaning up out folder & resetting ccache stats..."
     rm -rf out
-    ccache -z
+    if [ $USE_CCACHE -eq 1 ]; then ccache -z; fi
 fi
 
 mkdir -p out
@@ -33,7 +37,13 @@ echo -e "\nGenerating defconfig: $DEFCONFIG"
 make O=out ARCH=arm64 $DEFCONFIG
 
 CORES=$(nproc --all)
-echo -e "\nStarting compilation on $CORES Cores (-j$CORES) via WeebX Clang + Ccache..."
+echo -e "\nStarting compilation on $CORES Cores (-j$CORES) via Clang 21 (Void Host) + Ccache..."
+
+if [ $USE_CCACHE -eq 1 ]; then
+    COMPILER_CC="ccache clang"
+else
+    COMPILER_CC="clang"
+fi
 
 make -j$CORES O=out \
      ARCH=arm64 \
@@ -46,7 +56,7 @@ make -j$CORES O=out \
      OBJCOPY=llvm-objcopy \
      OBJDUMP=llvm-objdump \
      STRIP=llvm-strip \
-     CC="ccache clang" \
+     CC="$COMPILER_CC" \
      HOSTCC="gcc" \
      HOSTCXX="g++" \
      HOSTLD="ld" \
@@ -99,8 +109,10 @@ if [ -f "$kernel" ]; then
     # ====================================================
     
     echo -e "-------------------------------------"
-    echo -e "Ccache Status After Build:"
-    ccache -s
+    if [ $USE_CCACHE -eq 1 ]; then
+        echo -e "Ccache Status After Build:"
+        ccache -s
+    fi
     echo -e "====================================="
 else
     echo -e "\nCompilation Failed!"

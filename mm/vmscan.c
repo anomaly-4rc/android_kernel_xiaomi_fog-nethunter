@@ -191,7 +191,7 @@ int kswapd_threads_current = DEF_KSWAPD_THREADS_PER_NODE;
 /*
  * From 0 .. 200.  Higher means more swappy.
  */
-int vm_swappiness = 180;
+int vm_swappiness = 60;
 /*
  * The total number of pages which are beyond the high watermark within all
  * zones.
@@ -5797,7 +5797,7 @@ retry:
 			sc->may_writepage = 1;
 	} while (--sc->priority >= 0);
 	
-                            	/* OOM CALLER (experimental!) */
+                            	/* OOM CALLER */
 	if (sc->nr_reclaimed < sc->nr_to_reclaim && current && current->signal) {
 		struct task_group *tg = current->sched_task_group;
 		

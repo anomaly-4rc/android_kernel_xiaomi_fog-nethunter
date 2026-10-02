@@ -26,10 +26,6 @@
 #include <linux/mm.h>
 
 static DEFINE_PER_CPU(unsigned int, last_calculated_load);
-extern int sysctl_columbina_auto_purge;
-extern void iterate_supers(void (*f)(struct super_block *, void *), void *arg);
-extern void drop_pagecache_sb(struct super_block *sb, void *unused);
-extern void drop_slab(void);
 
 /* Columbina (base ondemand) governor macros */
 #define DEF_FREQUENCY_UP_THRESHOLD		(65)
@@ -155,12 +151,6 @@ static void moon_update(struct cpufreq_policy *policy)
     unsigned int up_threshold = dbs_data->up_threshold;
     unsigned int freq_next, min_f, max_f;
 
-    /* --- LOGIC DYNAMIC THRESHOLD --- */
-    if (moon_tuners->dynamic_threshold_enable && !moon_tuners->columbina_mode) {
-        if (policy->cur > (policy->max / 2))
-            up_threshold += 5;
-    }
-
     /* --- LOGIC IO BOOST --- */
 if (dbs_data->io_is_busy) {
     if (load > 50 && policy->cur > (policy->max / 2)) {
@@ -204,6 +194,17 @@ so that the transition doesn't shock the hardware too much */
 		min_f = policy->cpuinfo.min_freq;
 		max_f = policy->cpuinfo.max_freq;
 		freq_next = min_f + load * (max_f - min_f) / 100;
+		
+				/* --- LOGIC SMOOTH STEP-DOWN --- */
+		/* If the target frequency is lower than the current frequency */
+		if (freq_next < policy->cur) {
+			/* Limit maximum reduction to 20% of the frequency range per sampling tick */
+			unsigned int max_drop = (max_f - min_f) * 20 / 100;
+			
+			if ((policy->cur - freq_next) > max_drop) {
+				freq_next = policy->cur - max_drop;
+			}
+		}
 
 		/* No longer fully busy, reset rate_mult */
 		policy_dbs->rate_mult = 1;
@@ -223,25 +224,6 @@ static unsigned int moon_dbs_update(struct cpufreq_policy *policy)
 	struct dbs_data *dbs_data = policy_dbs->dbs_data;
 	struct moon_policy_dbs_info *dbs_info = to_dbs_info(policy_dbs);
 	int sample_type = dbs_info->sample_type;
-
-        static unsigned long last_purge_time = 0;
-    struct sysinfo i;
-
-if (sysctl_columbina_auto_purge == 1) {
-    if (time_after(jiffies, last_purge_time + msecs_to_jiffies(600000))) {
-        si_meminfo(&i);
-        
-        if (i.freeram < (i.totalram >> 3) && per_cpu(last_calculated_load, policy->cpu) < 80) { 
-            iterate_supers(drop_pagecache_sb, NULL);
-            drop_slab();
-            last_purge_time = jiffies;
-            pr_info("Columbina_Guard: Memory swept safely under low load.\n");
-        } else {
-            last_purge_time = jiffies - msecs_to_jiffies(300000); 
-        }
-    }
-}
-
 
 	/* Common NORMAL_SAMPLE setup */
 	dbs_info->sample_type = OD_NORMAL_SAMPLE;
@@ -313,17 +295,6 @@ static ssize_t store_down_differential(struct gov_attr_set *attr_set, const char
     unsigned int input;
     if (sscanf(buf, "%u", &input) != 1 || input > 100) return -EINVAL;
     moon_tuners->down_differential = input;
-    return count;
-}
-
-gov_show_one(moon, dynamic_threshold_enable);
-static ssize_t store_dynamic_threshold_enable(struct gov_attr_set *attr_set, const char *buf, size_t count)
-{
-    struct dbs_data *dbs_data = to_dbs_data(attr_set);
-    struct moon_dbs_tuners *moon_tuners = dbs_data->tuners;
-    unsigned int input;
-    if (sscanf(buf, "%u", &input) != 1) return -EINVAL;
-    moon_tuners->dynamic_threshold_enable = !!input;
     return count;
 }
 
@@ -435,7 +406,6 @@ gov_attr_rw(sampling_down_factor);
 gov_attr_rw(ignore_nice_load);
 gov_attr_rw(powersave_bias);
 gov_attr_rw(down_differential);
-gov_attr_rw(dynamic_threshold_enable);
 
 static struct governor_attr columbina_mode = __ATTR_RW(columbina_mode);
 
@@ -448,7 +418,6 @@ static struct attribute *moon_attributes[] = {
     &io_is_busy.attr,
     &columbina_mode.attr,
     &down_differential.attr,
-    &dynamic_threshold_enable.attr,
     NULL
 };
 
@@ -478,7 +447,6 @@ static int moon_init(struct dbs_data *dbs_data)
 		return -ENOMEM;
 
 	tuners->down_differential = 15;
-	tuners->dynamic_threshold_enable = 0;
 	tuners->columbina_mode = 0;
 	tuners->io_is_busy = 1;
 	

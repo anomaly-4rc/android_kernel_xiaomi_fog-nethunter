@@ -35,5 +35,4 @@ struct moon_dbs_tuners {
     unsigned int io_is_busy;
     unsigned int columbina_mode;
 	unsigned int down_differential;
-	unsigned int dynamic_threshold_enable;
 };

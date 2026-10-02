@@ -1174,7 +1174,7 @@ static int mt7601u_init_cal(struct mt7601u_dev *dev)
 
 	mt7601u_wr(dev, MT_MAC_SYS_CTRL, mac_ctrl);
 
-	mt7601u_temp_comp(dev, true);
+	// mt7601u_temp_comp(dev, true);
 
 	return 0;
 }

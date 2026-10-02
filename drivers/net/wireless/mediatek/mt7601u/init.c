@@ -566,13 +566,12 @@ mt76_init_sband_2g(struct mt7601u_dev *dev)
 	dev->sband_2g = devm_kzalloc(dev->dev, sizeof(*dev->sband_2g),
 				     GFP_KERNEL);
 	dev->hw->wiphy->bands[NL80211_BAND_2GHZ] = dev->sband_2g;
-
-	WARN_ON(dev->ee->reg.start - 1 + dev->ee->reg.num >
-		ARRAY_SIZE(mt76_channels_2ghz));
+	
+	dev_info(dev->dev, "[Sodium-Kernel] Unlocking all 2.4GHz channels!\n");
 
 	return mt76_init_sband(dev, dev->sband_2g,
-			       &mt76_channels_2ghz[dev->ee->reg.start - 1],
-			       dev->ee->reg.num,
+			       &mt76_channels_2ghz[0],
+			       ARRAY_SIZE(mt76_channels_2ghz),
 			       mt76_rates, ARRAY_SIZE(mt76_rates));
 }
 
